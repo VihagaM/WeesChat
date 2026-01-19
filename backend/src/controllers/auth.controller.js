@@ -45,31 +45,38 @@ export const signup =async (req, res) => {
         res.status(500).json({massage: "Internal Server Error"});
     }
 };
-export const login =async (req, res) => {
-    const{email,password} = req.body;
-    try {
-        const user = await User.findOne({email});
-        if(!user){
-            return res.status(400).json({message : "Invalid credentioals"});
-        }
-        const isPasswordCorrect = await bcrypt.compare(password , user.password);
-        if(!isPasswordCorrect){
-            return res.status(400).json({message : "Invalid credentioals"});
-        }
-
-        generateToken(user._id,res);
-
-        res.status(200).json({
-            _id: user._id,
-            fullName: user.fullName,
-            email: user.email,
-            profilePic: user.profilePic,
-        });
-    } catch (error) {
-        console.log("Error in login controller", error.message);
-        res.send(500).json({message: "Internal Server Error" });
+export const login = async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid credentials" });
     }
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+      return res.status(400).json({ message: "Invalid credentials" });
+    }
+
+    // Generate token (sets cookie)
+    generateToken(user._id, res);
+
+    // Send user info
+    return res.status(200).json({
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      profilePic: user.profilePic,
+    });
+
+  } catch (error) {
+    console.error("Error in login controller", error.message);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal Server Error" });
+    }
+  }
 };
+
 export const logout = (req, res) => {
     try {
         res.cookie("jwt", "", {maxAge:0})
