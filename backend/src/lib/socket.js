@@ -1,45 +1,45 @@
-import { Server } from "socket.io";
-import http from "http";
 import express from "express";
-import { ENV } from "./env.js";
-import { socketAuthMiddleware } from "../middleware/socket.auth.middleware.js";
+import cookieParser from "cookie-parser";
+import path from "path";
+import cors from "cors";
 
-const app = express();
-const server = http.createServer(app);
+import authRoutes from "./routes/auth.route.js";
+import messageRoutes from "./routes/message.route.js";
+import { connectDB } from "./lib/db.js";
+import { ENV } from "./lib/env.js";
+import { app, server } from "./lib/socket.js";
 
-const io = new Server(server, {
-    cors: {
-        origin: [ENV.CLIENT_URL],
-        credentials: true,
+const __dirname = path.resolve();
+const PORT = ENV.PORT || 3000;
+
+// Allow multiple origins
+const allowedOrigins = [
+  "http://localhost:5173",             // Local dev
+  "https://weeschat.netlify.app"      // Production frontend
+];
+
+app.use(express.json({ limit: "5mb" })); // req.body
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like Postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `CORS policy: The origin ${origin} is not allowed`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
     },
+    credentials: true,
+  })
+);
+
+app.use(cookieParser());
+
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
+
+server.listen(PORT, () => {
+  console.log("Server running on port: " + PORT);
+  connectDB();
 });
-
-io.use(socketAuthMiddleware);
-
-
-export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
-}
-
-const userSocketMap = {}; //{userId: socketId}
-
-io.on("connection", (socket) => {
-    console.log(" A user connected", socket.user.fullName);
-
-    const userId = socket.user._id
-    userSocketMap[userId] = socket.id
-
-    //io.emit() is used to send events to all connected users
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
-
-
-    socket.on("disconnect", () => {
-        console.log("A user disconnected", socket.user.fullName);
-        delete userSocketMap[userId];
-        io.emit("getOnlineUsers", Object.keys(userSocketMap));
-});
-
-
-});
-
-export {io, app,server};
